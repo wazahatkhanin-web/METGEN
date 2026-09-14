@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>MATRIX — The Essential Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800;900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0b0c;
+    --bg-2:#111214;
+    --ink:#f3f4f4;
+    --ink-dim:#9aa0a3;
+    --line: rgba(255,255,255,0.12);
+    --accent:#8fd9cf;
+    --accent-dim: rgba(143,217,207,0.16);
+    --panel-bg: rgba(10,11,12,0.55);
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html{scroll-behavior:auto;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    overflow-x:hidden;
+    cursor:default;
+  }
+  ::selection{ background:var(--accent); color:#04120f;}
+
+  /* ---------- canvas ---------- */
+  #webgl-canvas{
+    position:fixed;
+    top:0; left:0;
+    width:100vw; height:100vh;
+    display:block;
+    z-index:0;
+    background: radial-gradient(120% 120% at 50% 30%, #17191b 0%, #0a0b0c 60%, #060707 100%);
+  }
+  .vignette{
+    position:fixed; inset:0; z-index:1; pointer-events:none;
+    background: radial-gradient(120% 90% at 50% 50%, transparent 40%, rgba(0,0,0,0.55) 100%);
+  }
+  .grain{
+    position:fixed; inset:0; z-index:1; pointer-events:none; opacity:0.035; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- topbar ---------- */
+  .topbar{
+    position:fixed; top:0; left:0; right:0; z-index:20;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:22px clamp(20px,4vw,56px);
+    pointer-events:none;
+  }
+  .wordmark{
+    font-family:'Archivo', sans-serif;
+    font-weight:900;
+    font-size:19px;
+    letter-spacing:0.02em;
+  }
+  .wordmark span{ color:var(--accent); }
+  .top-cta{
+    pointer-events:auto;
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,0.06);
+    border:1px solid var(--line);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    padding:9px 9px 9px 16px;
+    border-radius:100px;
+    text-decoration:none;
+    color:var(--ink);
+    font-size:13px;
+    transition: border-color .25s ease, background .25s ease;
+  }
+  .top-cta:hover{ border-color: var(--accent); background:rgba(255,255,255,0.09); }
+  .top-cta .price{ font-family:'IBM Plex Mono', monospace; color:var(--accent); }
+  .top-cta .go{
+    background:var(--ink); color:#0a0b0c;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; font-weight:500;
+    padding:7px 14px; border-radius:100px;
+  }
+
+  /* ---------- side nav dots ---------- */
+  .dots{
+    position:fixed; right:clamp(16px,3vw,36px); top:50%; transform:translateY(-50%);
+    z-index:20; display:flex; flex-direction:column; gap:14px;
+  }
+  .dots button{
+    width:8px; height:8px; border-radius:50%;
+    background:transparent; border:1px solid var(--ink-dim);
+    cursor:pointer; padding:0; transition:all .3s ease;
+  }
+  .dots button.active{ background:var(--accent); border-color:var(--accent); transform:scale(1.3); }
+
+  /* ---------- main / panels ---------- */
+  main{ position:relative; z-index:5; }
+  .panel{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    padding: 0 clamp(20px, 7vw, 100px);
+    pointer-events:none;
+  }
+  .panel-inner{
+    max-width:460px;
+    opacity:0; transform:translateY(28px);
+    transition: opacity .8s cubic-bezier(.2,.7,.2,1), transform .8s cubic-bezier(.2,.7,.2,1);
+  }
+  .panel.in-view .panel-inner{ opacity:1; transform:translateY(0); }
+  .panel.align-right{ justify-content:flex-end; }
+  .panel.align-center{ justify-content:center; text-align:center; }
+  .panel.align-center .panel-inner{ max-width:620px; }
+
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px; color:var(--accent);
+    display:flex; align-items:center; gap:10px;
+    margin-bottom:18px;
+  }
+  .eyebrow::before{ content:''; width:26px; height:1px; background:var(--accent); }
+
+  h1.hero-title{
+    font-family:'Archivo', sans-serif;
+    font-weight:900;
+    font-size:clamp(52px, 10vw, 108px);
+    line-height:0.92;
+    letter-spacing:-0.01em;
+  }
+  h2.section-title{
+    font-family:'Archivo', sans-serif;
+    font-weight:800;
+    font-size:clamp(32px, 4.2vw, 46px);
+    line-height:1.05;
+    letter-spacing:-0.01em;
+    margin-bottom:16px;
+  }
+  p.lede{
+    font-size:16px; line-height:1.65; color:var(--ink-dim);
+    max-width:40ch;
+  }
+  .hero-sub{
+    font-size:17px; line-height:1.6; color:var(--ink-dim);
+    margin-top:22px; max-width:36ch;
+  }
+  .scroll-cue{
+    pointer-events:none;
+    position:absolute; bottom:38px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-dim);
+  }
+  .scroll-cue .line{ width:1px; height:36px; background:linear-gradient(var(--ink-dim), transparent); animation: pulse 1.8s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
+
+  .spec-list{ margin-top:26px; display:flex; flex-direction:column; gap:0; }
+  .spec-list .row{
+    display:flex; justify-content:space-between; padding:13px 0;
+    border-top:1px solid var(--line);
+    font-size:14px;
+  }
+  .spec-list .row:last-child{ border-bottom:1px solid var(--line); }
+  .spec-list .k{ color:var(--ink-dim); font-family:'IBM Plex Mono', monospace; font-size:12.5px; }
+  .spec-list .v{ font-weight:500; }
+
+  /* colorway swatches */
+  .swatches{ display:flex; gap:14px; margin-top:28px; pointer-events:auto; }
+  .swatch{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--line);
+    padding:10px 16px 10px 10px;
+    border-radius:100px;
+    cursor:pointer;
+    color:var(--ink);
+    font-size:13px;
+    transition: border-color .25s ease, background .25s ease;
+  }
+  .swatch .chip{ width:20px; height:20px; border-radius:50%; border:1px solid rgba(255,255,255,0.25); }
+  .swatch.selected{ border-color:var(--accent); background:var(--accent-dim); }
+  .swatch:hover{ border-color:var(--accent); }
+
+  /* CTA final section */
+  .price-huge{
+    font-family:'Archivo', sans-serif; font-weight:900;
+    font-size:clamp(64px, 11vw, 130px);
+    line-height:1; letter-spacing:-0.02em;
+    margin: 6px 0 4px;
+  }
+  .price-huge sup{ font-size:0.32em; vertical-align: 0.5em; color:var(--accent); font-weight:800; }
+  .strike{ color:var(--ink-dim); text-decoration: line-through; font-family:'IBM Plex Mono', monospace; font-size:16px; }
+  .buy-big{
+    pointer-events:auto;
+    display:inline-flex; align-items:center; gap:12px;
+    margin-top:30px;
+    background:var(--accent); color:#04120f;
+    font-family:'Archivo', sans-serif; font-weight:800; font-size:18px;
+    padding:18px 30px; border-radius:100px;
+    text-decoration:none;
+    box-shadow: 0 0 0 0 rgba(143,217,207,0.5);
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .buy-big:hover{ transform:translateY(-2px) scale(1.02); box-shadow: 0 10px 40px -6px rgba(143,217,207,0.55); }
+  .buy-note{ margin-top:16px; font-size:12.5px; color:var(--ink-dim); font-family:'IBM Plex Mono', monospace; }
+
+  footer{
+    position:relative; z-index:5;
+    padding:34px clamp(20px,7vw,100px) 46px;
+    display:flex; justify-content:space-between; align-items:center;
+    font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-dim);
+    border-top:1px solid var(--line);
+  }
+
+  @media (max-width: 720px){
+    .panel{ padding:0 22px; }
+    .panel.align-right .panel-inner, .panel.align-center .panel-inner{ max-width:100%; }
+    .dots{ display:none; }
+    .topbar{ padding:16px 18px; }
+    footer{ flex-direction:column; gap:10px; align-items:flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .panel-inner{ transition:none; }
+    .scroll-cue .line{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="webgl-canvas"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<header class="topbar">
+  <div class="wordmark">MA<span>Λ</span>RIX</div>
+  <a class="top-cta" href="https://amzn.in/d/09DkAIaY" target="_blank" rel="noopener">
+    <span class="price">₹399</span>
+    <span class="go">Buy now</span>
+  </a>
+</header>
+
+<nav class="dots" aria-hidden="true">
+  <button data-goto="0" class="active"></button>
+  <button data-goto="1"></button>
+  <button data-goto="2"></button>
+  <button data-goto="3"></button>
+  <button data-goto="4"></button>
+  <button data-goto="5"></button>
+</nav>
+
+<main>
+
+  <section class="panel" id="panel-0" data-index="0">
+    <div class="panel-inner">
+      <div class="eyebrow">Minimalist quartz</div>
+      <h1 class="hero-title">MATRIX</h1>
+      <p class="hero-sub">A watch reduced to what matters — a matte case, a silicone strap, and a dial with nothing to prove. Scroll to look closer.</p>
+    </div>
+    <div class="scroll-cue">
+      <span>SCROLL</span>
+      <span class="line"></span>
+    </div>
+  </section>
+
+  <section class="panel align-right" id="panel-1" data-index="1">
+    <div class="panel-inner">
+      <div class="eyebrow">01 — Dial</div>
+      <h2 class="section-title">A face with no clutter.</h2>
+      <p class="lede">Slim stick markers, needle-fine hands, and a single wordmark. The 40mm dial reads clearly at a glance and disappears into your wrist the rest of the time.</p>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-2" data-index="2">
+    <div class="panel-inner">
+      <div class="eyebrow">02 — Strap</div>
+      <h2 class="section-title">Soft silicone, all day.</h2>
+      <p class="lede">A vented silicone band that flexes with your wrist and shrugs off sweat, water and daily wear. Adjustable steel buckle, tone-matched to the case.</p>
+    </div>
+  </section>
+
+  <section class="panel align-right" id="panel-3" data-index="3">
+    <div class="panel-inner">
+      <div class="eyebrow">03 — Case</div>
+      <h2 class="section-title">Slim by design.</h2>
+      <p class="lede">A low-profile matte case sits close to the wrist instead of stacking on top of it — built to layer under a cuff as easily as it wears bare.</p>
+      <div class="spec-list">
+        <div class="row"><span class="k">CASE Ø</span><span class="v">40 mm</span></div>
+        <div class="row"><span class="k">MOVEMENT</span><span class="v">Quartz analog</span></div>
+        <div class="row"><span class="k">WATER RESIST</span><span class="v">Splash / rain safe</span></div>
+        <div class="row"><span class="k">STRAP</span><span class="v">Silicone, adjustable</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="panel-4" data-index="4">
+    <div class="panel-inner">
+      <div class="eyebrow">04 — Colorway</div>
+      <h2 class="section-title">Two ways to wear it.</h2>
+      <p class="lede">Stealth Black keeps everything tonal. Ice Grey lightens the dial and strap for a softer, everyday look. Same watch, different mood.</p>
+      <div class="swatches">
+        <button class="swatch selected" data-color="black">
+          <span class="chip" style="background:#111113;"></span> Stealth Black
+        </button>
+        <button class="swatch" data-color="grey">
+          <span class="chip" style="background:#c7cdd0;"></span> Ice Grey
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel align-center" id="panel-5" data-index="5">
+    <div class="panel-inner">
+      <div class="eyebrow" style="justify-content:center;">Limited launch price</div>
+      <h2 class="section-title" style="margin-bottom:0;">Own the Matrix.</h2>
+      <div class="price-huge"><span class="strike">₹1,499</span><br>₹399<sup>only</sup></div>
+      <a class="buy-big" href="https://amzn.in/d/09DkAIaY" target="_blank" rel="noopener">
+        Buy now — ₹399
+      </a>
+      <div class="buy-note">Ships in Stealth Black or Ice Grey · Secure checkout</div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>MATRIX WATCH CO.</span>
+  <span>© 2026 — Designed for everyday wear</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ============ THREE SETUP ============ */
+  var canvas = document.getElementById('webgl-canvas');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(35, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 4.4);
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x8891a0, 0.55));
+  var key = new THREE.DirectionalLight(0xffffff, 1.15);
+  key.position.set(3, 4, 5);
+  scene.add(key);
+  var rim = new THREE.DirectionalLight(0x8fd9cf, 0.9);
+  rim.position.set(-4, -2, -3);
+  scene.add(rim);
+  var fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-3, 1, 2);
+  scene.add(fill);
+
+  /* ============ DIAL TEXTURES ============ */
+  function makeDialTexture(bgColor, tickColor, textColor){
+    var size = 1024;
+    var c = document.createElement('canvas');
+    c.width = c.height = size;
+    var ctx = c.getContext('2d');
+    var cx = size/2, cy = size/2;
+
+    // background circle
+    ctx.fillStyle = bgColor;
+    ctx.beginPath();
+    ctx.arc(cx, cy, size/2, 0, Math.PI*2);
+    ctx.fill();
+
+    // ticks
+    var rOuter = size*0.46, rInner = size*0.38;
+    ctx.strokeStyle = tickColor;
+    ctx.lineWidth = size*0.012;
+    ctx.lineCap = 'butt';
+    for(var i=0;i<12;i++){
+      var a = (i/12) * Math.PI*2;
+      var x1 = cx + Math.sin(a)*rOuter, y1 = cy - Math.cos(a)*rOuter;
+      var x2 = cx + Math.sin(a)*rInner, y2 = cy - Math.cos(a)*rInner;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+    }
+
+    // wordmark
+    ctx.fillStyle = textColor;
+    ctx.font = '700 ' + (size*0.065) + 'px Archivo, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.letterSpacing = (size*0.01) + 'px';
+    ctx.fillText('MATRIX', cx, cy - size*0.14);
+
+    var tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  var dialTexBlack = makeDialTexture('#0d0e0f', 'rgba(255,255,255,0.55)', '#f4f5f5');
+  var dialTexGrey  = makeDialTexture('#d7dbdd', 'rgba(20,22,24,0.55)', '#15171a');
+
+  /* ============ MATERIALS ============ */
+  var matCase   = new THREE.MeshStandardMaterial({ color: 0x0c0d0e, metalness: 0.55, roughness: 0.4 });
+  var matBezel  = new THREE.MeshStandardMaterial({ color: 0x1a1b1d, metalness: 0.75, roughness: 0.28 });
+  var matCrown  = new THREE.MeshStandardMaterial({ color: 0x2a2c2f, metalness: 0.85, roughness: 0.25 });
+  var matHands  = new THREE.MeshStandardMaterial({ color: 0xf1f2f2, metalness: 0.5, roughness: 0.3 });
+  var matDialSide = new THREE.MeshStandardMaterial({ color: 0x0a0a0b, metalness: 0.2, roughness: 0.7 });
+  var matDialTop  = new THREE.MeshStandardMaterial({ map: dialTexBlack, metalness: 0.15, roughness: 0.55 });
+  var matStrap  = new THREE.MeshStandardMaterial({ color: 0x111113, metalness: 0.05, roughness: 0.85 });
+  var matBuckle = new THREE.MeshStandardMaterial({ color: 0xb9bec1, metalness: 0.9, roughness: 0.3 });
+
+  var colorState = { t: 1 }; // 1 = black, 0 = grey (for lerp)
+  var strapColorBlack = new THREE.Color(0x111113);
+  var strapColorGrey  = new THREE.Color(0xc7cdd0);
+
+  /* ============ WATCH GROUP ============ */
+  var watch = new THREE.Group();
+  scene.add(watch);
+
+  // Case
+  var caseGeo = new THREE.CylinderGeometry(1.0, 1.0, 0.34, 64);
+  var caseMesh = new THREE.Mesh(caseGeo, matCase);
+  caseMesh.rotation.x = Math.PI/2;
+  watch.add(caseMesh);
+
+  // Bezel ring
+  var bezelGeo = new THREE.TorusGeometry(0.98, 0.045, 24, 64);
+  var bezelMesh = new THREE.Mesh(bezelGeo, matBezel);
+  bezelMesh.position.z = 0.17;
+  watch.add(bezelMesh);
+
+  // Dial (side + top cap with texture)
+  var dialGeo = new THREE.CylinderGeometry(0.86, 0.86, 0.05, 64, 1, false);
+  var dialMesh = new THREE.Mesh(dialGeo, [matDialSide, matDialTop, matDialSide]);
+  dialMesh.rotation.x = Math.PI/2;
+  dialMesh.position.z = 0.20;
+  watch.add(dialMesh);
+
+  // Hour markers (small raised ticks, subtle 3d relief on top of texture)
+  var markerGeo = new THREE.BoxGeometry(0.02, 0.09, 0.015);
+  for(var i=0;i<12;i++){
+    var a = (i/12) * Math.PI*2;
+    var m = new THREE.Mesh(markerGeo, matHands);
+    var r = 0.72;
+    m.position.set(Math.sin(a)*r, Math.cos(a)*r, 0.225);
+    m.rotation.z = -a;
+    m.material = matHands.clone();
+    m.material.opacity = 0.0; // texture already shows ticks; keep subtle geometry off by default
+    m.visible = false;
+    watch.add(m);
+  }
+
+  // Hands (positioned roughly at 10:10)
+  var hourPivot = new THREE.Group();
+  watch.add(hourPivot);
+  var hourHand = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.42, 0.018), matHands);
+  hourHand.position.y = 0.21;
+  hourPivot.add(hourHand);
+  hourPivot.position.z = 0.235;
+  hourPivot.rotation.z = THREE.MathUtils.degToRad(-60); // ~10
+
+  var minPivot = new THREE.Group();
+  watch.add(minPivot);
+  var minHand = new THREE.Mesh(new THREE.BoxGeometry(0.032, 0.62, 0.018), matHands);
+  minHand.position.y = 0.31;
+  minPivot.add(minHand);
+  minPivot.position.z = 0.245;
+  minPivot.rotation.z = THREE.MathUtils.degToRad(60); // ~2 (10:10 look)
+
+  var secHand = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.66, 12), matHands.clone());
+  secHand.material.color = new THREE.Color(0x8fd9cf);
+  secHand.rotation.z = Math.PI/2;
+  secHand.position.set(0, 0.15, 0.25);
+  secHand.rotation.x = Math.PI/2;
+  secHand.geometry.translate(0,0.33,0);
+  secHand.rotation.set(0,0, THREE.MathUtils.degToRad(150));
+  watch.add(secHand);
+
+  var capMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.05,20), matCrown);
+  capMesh.rotation.x = Math.PI/2;
+  capMesh.position.z = 0.25;
+  watch.add(capMesh);
+
+  // Crown
+  var crownMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.12,20), matCrown);
+  crownMesh.rotation.z = Math.PI/2;
+  crownMesh.position.set(1.05, -0.02, 0.02);
+  watch.add(crownMesh);
+
+  // Lugs + straps (top and bottom)
+  function makeStrapSegment(len, topWidth){
+    var shape = new THREE.BoxGeometry(topWidth, len, 0.16);
+    var mesh = new THREE.Mesh(shape, matStrap);
+    return mesh;
+  }
+  var strapTop = makeStrapSegment(1.7, 0.62);
+  strapTop.position.set(0, 1.55, 0.0);
+  watch.add(strapTop);
+
+  var strapBottom = makeStrapSegment(1.9, 0.62);
+  strapBottom.position.set(0, -1.65, 0.0);
+  watch.add(strapBottom);
+
+  // Buckle on bottom strap
+  var buckleFrame = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.035, 12, 24), matBuckle);
+  buckleFrame.position.set(0, -2.35, 0.02);
+  watch.add(buckleFrame);
+  var buckleBar = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.5,12), matBuckle);
+  buckleBar.rotation.z = Math.PI/2;
+  buckleBar.position.set(0, -2.35, 0.02);
+  watch.add(buckleBar);
+
+  // strap perforation holes (small dark dots) on bottom strap for detail
+  var holeGeo = new THREE.CylinderGeometry(0.02,0.02,0.18,10);
+  var holeMat = new THREE.MeshStandardMaterial({ color:0x000000, roughness:1 });
+  for(var h=0; h<5; h++){
+    var hole = new THREE.Mesh(holeGeo, holeMat);
+    hole.rotation.x = Math.PI/2;
+    hole.position.set(0, -1.3 - h*0.22, 0.09);
+    watch.add(hole);
+  }
+
+  watch.scale.set(1.05,1.05,1.05);
+
+  /* ============ SCROLL-DRIVEN KEYFRAMES ============ */
+  // rotY, rotX, camZ, camY, groupX
+  var KF = [
+    { rotY: 0.55, rotX: 0.12, camZ: 4.4, camY: 0.05, gx: 0.0  },  // 0 hero
+    { rotY: 0.08, rotX: -0.04, camZ: 2.55, camY: 0.0, gx: -0.35 }, // 1 dial closeup
+    { rotY: 1.55, rotX: 0.05, camZ: 3.0, camY: 0.15, gx: 0.4 }, // 2 strap
+    { rotY: 1.48, rotX: 1.25, camZ: 2.75, camY: 0.0, gx: -0.2 }, // 3 case profile
+    { rotY: 0.5, rotX: 0.1, camZ: 3.5, camY: 0.0, gx: 0.0 }, // 4 colors
+    { rotY: 2.4, rotX: 0.15, camZ: 4.9, camY: 0.0, gx: 0.0 }  // 5 cta
+  ];
+  var N = KF.length;
+
+  function getProgress(){
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    if(max <= 0) return 0;
+    return Math.min(Math.max(window.scrollY / max, 0), 1);
+  }
+
+  var current = { rotY: KF[0].rotY, rotX: KF[0].rotX, camZ: KF[0].camZ, camY: KF[0].camY, gx: KF[0].gx };
+
+  function computeTarget(progress){
+    var idx = progress * (N-1);
+    var i0 = Math.floor(idx);
+    var i1 = Math.min(i0+1, N-1);
+    var t = idx - i0;
+    var a = KF[i0], b = KF[i1];
+    return {
+      rotY: THREE.MathUtils.lerp(a.rotY, b.rotY, t),
+      rotX: THREE.MathUtils.lerp(a.rotX, b.rotX, t),
+      camZ: THREE.MathUtils.lerp(a.camZ, b.camZ, t),
+      camY: THREE.MathUtils.lerp(a.camY, b.camY, t),
+      gx: THREE.MathUtils.lerp(a.gx, b.gx, t)
+    };
+  }
+
+  /* ============ COLOR TOGGLE ============ */
+  var colorAnim = null;
+  function setColor(mode){
+    var toBlack = mode === 'black';
+    var fromT = colorState.t;
+    var toT = toBlack ? 1 : 0;
+    var start = performance.now();
+    var dur = 550;
+    if(colorAnim) cancelAnimationFrame(colorAnim);
+    function step(now){
+      var p = Math.min((now-start)/dur, 1);
+      var e = p<0.5 ? 2*p*p : 1-Math.pow(-2*p+2,2)/2; // ease in out
+      colorState.t = THREE.MathUtils.lerp(fromT, toT, e);
+      matStrap.color.copy(strapColorGrey).lerp(strapColorBlack, colorState.t);
+      matDialTop.map = colorState.t > 0.5 ? dialTexBlack : dialTexGrey;
+      matDialTop.needsUpdate = true;
+      if(p < 1){ colorAnim = requestAnimationFrame(step); }
+    }
+    colorAnim = requestAnimationFrame(step);
+  }
+  document.querySelectorAll('.swatch').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.swatch').forEach(function(b){ b.classList.remove('selected'); });
+      btn.classList.add('selected');
+      setColor(btn.getAttribute('data-color'));
+    });
+  });
+
+  /* ============ MOUSE PARALLAX (hero only, subtle) ============ */
+  var mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', function(e){
+    mouseX = (e.clientX / window.innerWidth - 0.5);
+    mouseY = (e.clientY / window.innerHeight - 0.5);
+  });
+
+  /* ============ RENDER LOOP ============ */
+  var clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    var t = clock.getElapsedTime();
+    var progress = getProgress();
+    var target = computeTarget(progress);
+
+    var ease = 0.08;
+    current.rotY += (target.rotY - current.rotY) * ease;
+    current.rotX += (target.rotX - current.rotX) * ease;
+    current.camZ += (target.camZ - current.camZ) * ease;
+    current.camY += (target.camY - current.camY) * ease;
+    current.gx   += (target.gx - current.gx) * ease;
+
+    var idle = reduceMotion ? 0 : Math.sin(t*0.6)*0.015;
+    var parallaxY = reduceMotion ? 0 : mouseX * 0.12;
+    var parallaxX = reduceMotion ? 0 : mouseY * 0.06;
+
+    watch.rotation.y = current.rotY + idle + parallaxY;
+    watch.rotation.x = current.rotX + parallaxX;
+    watch.position.x = current.gx;
+    watch.position.y = reduceMotion ? 0 : Math.sin(t*0.5)*0.02;
+
+    camera.position.z = current.camZ;
+    camera.position.y = current.camY;
+    camera.lookAt(0,0,0);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  window.addEventListener('resize', function(){
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  /* ============ PANEL REVEAL + NAV DOTS ============ */
+  var panels = document.querySelectorAll('.panel');
+  var dots = document.querySelectorAll('.dots button');
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(entry){
+      if(entry.isIntersecting){
+        entry.target.classList.add('in-view');
+        var idx = entry.target.getAttribute('data-index');
+        dots.forEach(function(d){ d.classList.toggle('active', d.getAttribute('data-goto') === idx); });
+      }
+    });
+  }, { threshold: 0.45 });
+  panels.forEach(function(p){ io.observe(p); });
+
+  dots.forEach(function(d){
+    d.addEventListener('click', function(){
+      var idx = d.getAttribute('data-goto');
+      var target = document.getElementById('panel-' + idx);
+      if(target) target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
